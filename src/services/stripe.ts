@@ -1,3 +1,5 @@
+// Parte do Stripe voltada para o Back-end
+
 import Stripe from 'stripe';
 import { version } from "../../package.json";
 
