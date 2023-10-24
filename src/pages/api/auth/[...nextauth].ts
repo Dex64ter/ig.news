@@ -1,27 +1,26 @@
 import { query as q } from "faunadb";
-
 import NextAuth from "next-auth";
 import GithubProvider from "next-auth/providers/github";
 import { fauna } from "../../../services/fauna";
 
-interface User {
-  id: string;
-  email: string;
-}
-
-export const AuthOptions = {
+export const authOptions = {
   // Configure one or more authentication providers
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      // scope: "read:user",
+      authorization: {
+        params: {
+          scope: "read:user"
+        }
+      }
     }),
   ],
-  
-  callback: {
-    async signIn({ user }: { user: User }) {
+  callbacks: {
+    async signIn(params) {
+      const { user, account, profile } = params;
       const { email } = user;
+      
       // Try catch para verificar se é possível guardar o usuário no fauna
       try {
         await fauna.query( // Criando usuário no fauna 
@@ -51,7 +50,9 @@ export const AuthOptions = {
         return false;
       }
     },
-  },
+    
+  }
+
 };
 
-export default NextAuth(AuthOptions);
+export default NextAuth(authOptions);
