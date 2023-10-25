@@ -2,6 +2,7 @@ import { stripe } from "../../services/stripe";
 import { NextApiRequest, NextApiResponse } from "next"
 import Stripe from "stripe";
 import { Readable } from "stream"
+import { saveSubsccription } from "./_lib/manageSubscription";
 
 async function buffer(readable: Readable) {
   const chunks = [];
@@ -33,7 +34,7 @@ const handlerWebhook = async (req: NextApiRequest, res: NextApiResponse) => {
     let event: Stripe.Event;
 
     try {
-      event = stripe.webhooks.constructEvent(buf, secret, process.env.STRIPE_WEBHOOK_SECRET)
+      event = stripe.webhooks.constructEvent(buf, secret!, process.env.STRIPE_WEBHOOK_SECRET!)
     } catch (err){
       return res.status(400).send(`Webhook error: ${err}`)
     }
@@ -41,7 +42,22 @@ const handlerWebhook = async (req: NextApiRequest, res: NextApiResponse) => {
     const { type } = event;
 
     if (relevantEvents.has(type)) {
-      console.log('evento recebido', event)
+      try {
+        switch(type) {
+          case 'checkout.session.completed':
+            const checkoutSession = event.data.object as Stripe.Checkout.Session
+            await saveSubsccription(
+              checkoutSession.subscription?.toString(),
+              checkoutSession.customer?.toString()
+            )
+            break;
+          default:
+            throw new Error('Unhandled event.')
+        }
+      } catch (err) {
+        return res.json({ error: 'Webhook handler failed.'})
+      }
+
     }
 
     res.json({ received: true })

@@ -125,3 +125,111 @@ const handlerWebhook = async (req: NextApiRequest, res: NextApiResponse) => {
 Nessa implementação, eu consigo verificar se o método da requisição é POST. Consigo verificar o evento da forma como é descrito na documentação do Stripe e condicionar para verificar se o evento desejado está na requisição recebida e assim enviar a confirmação com "Evento recebido" e a descrição do evento.
 
 Caso dê errado, é enviado um status de erro.
+
+## Salvando dados do evento
+
+Para designar determinadas funções para cadaa tipo de evento desejado pela nossa aplicação, como por exemplo, inscrição de um usuário, pagamento não efetuado, cancelamento de assinatura, entre outros eventos, modificamos o condicional de verificação de que os determinados eventos estão presentes no webhook e colocamos uma estrutura _switch(type)_ para levar os eventos a suas determinadas funções.
+
+```typescript
+const handlerWebhook = async (req: NextApiRequest, res: NextApiResponse) => {
+  if (req.method === 'POST'){
+    const buf = await buffer(req);
+    const secret = req.headers['stripe-signature']
+
+    let event: Stripe.Event;
+
+    try {
+      event = stripe.webhooks.constructEvent(buf, secret!, process.env.STRIPE_WEBHOOK_SECRET!)
+    } catch (err){
+      return res.status(400).send(`Webhook error: ${err}`)
+    }
+
+    const { type } = event;
+
+    if (relevantEvents.has(type)) {
+      try {
+        switch(type) {
+          case 'checkout.session.completed':
+            const checkoutSession = event.data.object as Stripe.Checkout.Session
+            await saveSubsccription(
+              checkoutSession.subscription?.toString(),
+              checkoutSession.customer?.toString()
+            )
+            break;
+          default:
+            throw new Error('Unhandled event.')
+        }
+      } catch (err) {
+        return res.json({ error: 'Webhook handler failed.'})
+      }
+
+    }
+
+    res.json({ received: true })
+  } else {
+    res.setHeader("Allow", 'POST');
+    res.status(405).end('Method Not Allowed');
+  }
+
+}
+```
+
+No caso do evento exemplo feito acima, verificamos quando um usuário efetua a sua inscrição na newsletter Ignews. A partir disso é feito um chamado para uma função criada em uma outra pasta dentro da pasta api ficando desta forma:
+
+```
+../api/_lib/manageSubscription.ts
+```
+
+Foi colocado o underline "_" antes do nome da pasta para não ser tratada como uma rota da aplicação. A aplicação em si ignora essa pasta por não designar uma rota dela podendo ser colocada tanto dentro da pasta api como na pasta pages, ela não é reconhecida.
+
+Logo, dentro deste arquivo temos o seguinte código:
+
+```typescript
+import { query as q } from "faunadb"
+import { fauna } from "../../../services/fauna"
+import { stripe } from "@/src/services/stripe"
+
+export async function saveSubsccription(
+  subscriptionId: string,
+  customerId: string,
+) {
+  // Buscar usuário no Fauna com o customerId
+  const userRef = await fauna.query(
+    q.Select( // Selecionar um campo específico do retorno da query (no caso, o ref)
+      "ref",
+      q.Get(
+        q.Match(
+          q.Index("user_by_stripe_customer_id"),
+          customerId
+        )
+      )
+    )
+  )
+
+  // Salvar os dados da subscription do usuário no FaunaDB
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+  const subscriptionData = {
+    id: subscription.id,
+    userId: userRef,
+    status: subscription.status,
+    price_id: subscription.items.data[0].price.id,
+  }
+
+  await fauna.query(
+    q.Create(
+      q.Collection('subscriptions'),
+      { data: subscriptionData }
+    )  
+  )
+}
+```
+
+Cabe citar que o código descrito acima, só funcionará após a criação de uma nova collection para guardar novos dados da nossa aplicação, as inscrições. Deverão ser criadas a collection ___subscriptions___ e um novo indexador na collection ___users___ com o nome de _user_by_stripe_customer_id_
+
+Agora ao código:
+- Primeiro iremos buscar o usuário cadastrado no Fauna que fez a incrição e selecionar a sua referência que posteriormente utilizaremos para guardar como dado da inscrição.
+
+- Em seguida, buscamos o dado da subscrição do usuário no stripe.
+
+- Em fim, utilizamos o objeto "subscriptionData" para formatar os dados da subscrição e assim salvar esse objeto dentro do banco do Fauna na collection subscriptions.
