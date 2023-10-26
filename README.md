@@ -233,3 +233,159 @@ Agora ao código:
 - Em seguida, buscamos o dado da subscrição do usuário no stripe.
 
 - Em fim, utilizamos o objeto "subscriptionData" para formatar os dados da subscrição e assim salvar esse objeto dentro do banco do Fauna na collection subscriptions.
+
+<h2 style="color: #2470df">
+  Ouvindo mais eventos
+</h2>
+
+Para adentrar ainda mais no eventos que os webhooks do Stripe nos fornecem, vamos para outras opções de eventos que podemos colocar que poderão ser úteis para nossa aplicação além do _checkout.session.completed_ que vimos anteriormente
+
+```typescript
+const relevantEvents = new Set([
+  'checkout.session.completed',
+  'customer.subscription.updated',
+  'customer.subscription.deleted' 
+])
+```
+
+Com o novos eventos adicionados ao nosso conjunto de eventos relevantes, podemos adiciona-los a estrutura ___switch(type)___ dentro da nossa função _handlerWebhook()_ que nos fornece um caminho para cada tipo de evento e qual ação realizar de acordo com cada um deles contanto que sejão relevantes para aplicação.
+
+```typescript
+if (relevantEvents.has(type)) {
+  try {
+    switch(type) {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        const subscription = event.data.object as Stripe.Subscription;
+
+        await saveSubscription(
+          subscription.id,
+          subscription.customer.toString(),
+        );
+
+        break;
+
+      case 'checkout.session.completed':
+        const checkoutSession = event.data.object as Stripe.Checkout.Session
+        await saveSubscription(
+          checkoutSession.subscription!.toString(),
+          checkoutSession.customer!.toString(),
+        )
+        break;
+
+      default:
+        throw new Error('Unhandled event.')
+    }
+  } catch (err) {
+    return res.json({ error: 'Webhook handler failed.'})
+  }
+
+}
+```
+
+Analisando o código acima, perceba que usamos a função __saveSubscription()__ em dois _cases_ diferentes. Um para quando ocorrer o "checkout session" de um usuário, o que foi implementado anteriormente, e para o caso de uma nova subscrição for criada, atualizada ou apagada, sendo assim, teriamos que atualizar uma subscrição.
+
+```typescript
+// ../api/_lib/manageSubscription.ts
+export async function saveSubscription(
+  subscriptionId: string,
+  customerId: string,
+  createAction = false
+)
+```
+
+Diante disso, adicionamos mais um parâmetro a função __saveSubscription()__ com valor padrão <span style="color: #2470df; font-weight: bold;">false</span> que nos indicará conforme a implementação se está acontecendo o "checkout session" de um usuário ou se há a ocorrência de modificação de uma subscrição na aplicação.
+
+Abaixo temos a mudança no código no local da criação de uma nova subscrição:
+```typescript
+if(createAction) {
+    await fauna.query(
+      q.Create(
+        q.Collection('subscriptions'),
+        { data: subscriptionData }
+      )  
+    )
+  } else {
+    await fauna.query(
+      // para atualizar Update ou Replace
+      // com o Update eu consigo mudar um dos campos dentro de um registro do Fauna
+      // com o Replace eu substituo toda a informação do registro, toda a subscription
+      q.Replace(
+        q.Select(
+          "ref",
+          q.Get(
+            q.Match(
+              q.Index("subscription_by_id"),
+              subscriptionId,
+            )
+          )
+        ),
+          { data: subscriptionData }
+      )
+    )    
+  }
+```
+
+Dentro dos cases do switch, utilizaremos esse segundo paâmetro da seguinte forma em cada caso:
+
+```typescript
+// 1º case
+case 'customer.subscription.created':
+case 'customer.subscription.updated':
+case 'customer.subscription.deleted':
+  const subscription = event.data.object as Stripe.Subscription;
+
+  await saveSubscription(
+    subscription.id,
+    subscription.customer.toString(),
+    type === 'customer.subscription.created'
+  );
+
+  break;
+```
+
+```typescript
+// 2º case
+case 'checkout.session.completed':
+  const checkoutSession = event.data.object as Stripe.Checkout.Session
+  await saveSubscription(
+    checkoutSession.subscription!.toString(),
+    checkoutSession.customer!.toString(),
+    true
+  )
+  break;
+```
+
+Após o teste na aplicação, podemos ver um pequeno erro no Faunadb. São adicionadas duas inscrições dentro da collection __subscriptions__ isso porquê quando um usuário se inscreve na aplicação, os dois eventos de "customer.subscription.created" e "checkout.session.completed" são executados.
+
+Para que isso não ocorra dentro do banco de dados teremos 2 opções:
+- Tratamos a função de criação de uma nova subscrição para verificar se já existe alguma subscrição com aquele determinado id que foi enviado para função, caso não exista ela é tratada e adicionada a collection. Isso evitará que mesmo que alguém tente se inscrever diretamente no stripe, seja adicionado a sua subscrição duas vezes no banco de dados.
+
+- Ou reconhecer que teremos apenas uma maneira de fazer a subscrição na aplicação que será pelo acesso a plataforma criada evitando que o usuário use o stripe para se increver e dessa forma a implementação é mais simples, sendo ela a utilizada.
+
+```typescript
+// Retiramos o evento 'customer.subscription.created'
+// dos eventos relevantes
+const relevantEvents = new Set([
+  'checkout.session.completed',
+  'customer.subscription.updated',
+  'customer.subscription.deleted' 
+])
+
+// .
+// .
+// .
+// retiramos o case 'customer'
+case 'customer.subscription.updated':
+case 'customer.subscription.deleted':
+  const subscription = event.data.object as Stripe.Subscription;
+
+  await saveSubscription(
+    subscription.id,
+    subscription.customer.toString(),
+    false    // trocamos o condicional pelo valor booleano false
+  );
+
+  break;
+```
