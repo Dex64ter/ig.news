@@ -1,6 +1,7 @@
 # Ignews
 
-## WebHooks do Stripe
+## Back-end no Front-end
+### WebHooks do Stripe
   O que são WebHooks? WebHooks são patterns muito utilizado para integração entre sistemas na web.
 
 Eles ajudam a avisar a aplicação sobre algo na aplicação terceira.
@@ -42,7 +43,7 @@ Deixando o prompt do stripe executando teremos diversas novas requisições vind
 
 ![Webhooks sendo enviados](./imgs/image3.png)
 
-## Ouvindo eventos do Stripe
+### Ouvindo eventos do Stripe
 
 Para ouvir os eventos do stripe pouco a pouco, importamos o Readable da lib stream, ele nos ajuda a ler as requisições pouco a pouco, pedaço por pedaço de uma stream. Para isso funcionar usamos um código pronto:
 
@@ -126,7 +127,7 @@ Nessa implementação, eu consigo verificar se o método da requisição é POST
 
 Caso dê errado, é enviado um status de erro.
 
-## Salvando dados do evento
+### Salvando dados do evento
 
 Para designar determinadas funções para cadaa tipo de evento desejado pela nossa aplicação, como por exemplo, inscrição de um usuário, pagamento não efetuado, cancelamento de assinatura, entre outros eventos, modificamos o condicional de verificação de que os determinados eventos estão presentes no webhook e colocamos uma estrutura _switch(type)_ para levar os eventos a suas determinadas funções.
 
@@ -389,3 +390,75 @@ case 'customer.subscription.deleted':
 
   break;
 ```
+
+## Front-end JAMStack
+
+### Escolheno um CMS
+
+JAMStack é um conceito que nos permite, no front-end, implementar uma aplicação quase que completa sem depender de toda uma estrutura completa do back-end. Existem serviços que possuem quase todas as funcionalidades do que vamos ou que precisamos utilizar para desenvolver
+
+A JAM é formada por:
+ - Javascript - utilizamos em todo o lugar no desenvolvimento;
+ - API - APIs de terceiros como Fauna, Stripe, entre outros;
+ - Markup - O HTML ou estrutura da página e tudo mais.
+
+CMS (Content Management System) são projetos que ganham um painel de administração pronto em que conseguimos criar conteúdo dentro deles, como por exemplo o Wordpress, Drupal, Joomla, Magento
+
+Com o tempo tivemos o conteito de Headless CMS, um CMS sem a parte visual para quem consome o conteúdo, em resumo eles são formados apenas por um painel de administração em que todos os dados são servidos por uma API
+
+>Como exemplos de headless CMS, temos o Strapi, Ghost, Keystone, GraphCMS, Prismic CMS, Contentful, Shopify, Saleor
+
+<h4 style="color:#edf050">Então qual utilizar?</h4>
+
+- X - Drupal, Joomla não são mais tão utilizados.
+- X - Magento não será útil para aplicação.
+- V - Wordpress não é headless mas pode ser usado, é muito útil e muito fácil de usar além de ser gratuito e self-hosted.
+- V - Strapi é bom mas não é ótimo, segundo alguns exemplos citados pelo Diego Fernandes, com uma quantidade grande de dados ele pode ocasionar bugs.
+- X - Ghost e Keystone são mais voltados para blogs
+- V - Prismic é muito bom e possui planos pagos, o Prismic CMS tem conteúdo e mais fácil para utilização de implementações menores.
+- Shopify e Saleor são mais voltados para e-commerce
+
+__Utilizaremos o Prismic CMS__
+
+### Configurando Prismic CMS
+
+Para configurarmos o prismic CMS, primeiro devemos acessar a página o [Prismic](https://prismic.io) e fazer o login na plataforma.
+
+![Imagem da página do dashboard do Prismic CMS](./imgs/prismic-page.png)
+
+Após o cadastro ou login na plataforma, temos acesso ao dashboard onde podemos criar novos repositórios do Prismic para criarmos o conteúdo necessário.
+
+Acessando o repositório criado com as configurações que desejamos, como o plano gratuito, qual framework utilizado, etc. Vamos para a página do repositório:
+
+![Página de um repositório prismic](./imgs/repository-page.png)
+
+No segundo item da coluna a esquerda, temos o Custom Types, essa opção nos fornece a construção prática das nossas páginas.
+
+![Criação de estrutura de página Post no prismic](./imgs/Post-page-prismic.png)
+
+Nossa página de posts pode ter vários conteúdos que são descritos na coluna a direita na imagem acima. Para nossa aplicação, utilizamos o __UID__ para cada post, um __Título__ e um __Conteúdo__, que são descritos de acordo com o tipo de "label" que adicionamos a página.
+
+Para o UID, adicionamos um tipo UID, para o Título temos a label title e para o conteúdo, adicionamos um Rich Text que aceita todo tipo de texto.
+
+Ao salvarmos nosso _custom type_ podemos voltar e ir para a aba de documentos e adicionarmos um novo post com os campos que foram descritos anteriormente:
+
+![Construção do post no Prismic](./imgs/post-creation.png)
+
+Por último, por sermos uma página de inscrições que apenas usuários logados poderão ver os posts, devemos ir para as configurações do nosso repositório na parte de baixo da coluna a esquerda na página principal do repositório.
+
+Lá, acessamos a aba de API & Security onde encontramos o tópicos _Repository security_ que descreve quem e como o conteúdo das páginas do repositório podem ser visualizadas.
+
+![Aba de segurança do repositório nas configurações](./imgs/security-view.png)
+
+Por padrão ele se contrará como uma API pública pelo conteúdo ser de blog essa configuração geralmente é recomendada por dar acesso a vários usuários ao conteúdo do blog.
+
+Entretanto por razões já descritas, iremos privar a API para acesso com token para as requisições, permitindo que só usuários com o token de segurança possam visualizar o conteúdo.
+
+![Visibilidade do acesso a API](./imgs/visibility-config.png)
+
+Em seguida para conseguirmos um token de acesso, vamos a parte de _Generate an Access Token_ para criarmos um token de acesso para nossa aplicação.
+
+![Nome da criação de token de acesso](./imgs/name-access-token.png)
+![Token de acesso](./imgs/secret-key-access-token.png)
+
+Ao final, copiamos o token de acesso permanente e adicionamos ele como uma variável ambiente local no nosso arquivo __.env.local__ pois será com ele que conseguiremos acessar os conteúdos do Prismic CMS.

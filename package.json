@@ -21,12 +21,14 @@
     "stripe": "^13.8.0"
   },
   "devDependencies": {
+    "@slicemachine/adapter-next": "^0.3.23",
     "@types/next-auth": "^3.15.0",
     "@types/node": "^20.7.1",
     "@types/react": "^18.2.23",
     "@types/react-dom": "latest",
     "eslint": "latest",
     "eslint-config-next": "latest",
+    "slice-machine-ui": "^1.19.1",
     "typescript": "^5.2.2"
   }
 }
