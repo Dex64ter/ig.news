@@ -462,3 +462,93 @@ Em seguida para conseguirmos um token de acesso, vamos a parte de _Generate an A
 ![Token de acesso](./imgs/secret-key-access-token.png)
 
 Ao final, copiamos o token de acesso permanente e adicionamos ele como uma variável ambiente local no nosso arquivo __.env.local__ pois será com ele que conseguiremos acessar os conteúdos do Prismic CMS.
+
+### Página: Posts
+
+Criando a página onde ficaram os posts da nossa aplicação. Primeiro adicionamos uma nova pasta dentro da pasta __./pages/__ com o nome de __../posts/__. Dessa forma, estaremos criando uma rota para a sessão de posts da aplicação.
+
+> como já aviamos configurado como sucesso da assinatura da newsletter: __htttp://localhost:3000/posts__
+
+A configuração das rotas essa forma também ajuda na manipulação das próximas rotas criadas que serão de acordo com o link para cada um dos posts da página.
+
+![Rotas](./imgs/rotas.png)
+
+Dentro da pasta posts, criamos o ___index.tsx___ e o ___styles.module.scss___, onde implantaremos o código para criação da pagina e dos estilos.
+
+```typescript
+// index.tsx
+import styles from './styles.module.scss';
+import Head from 'next/head';
+
+export default function Posts(){
+  return (
+    <>
+      <Head>
+        <title>Posts | Ignews</title>
+      </Head>
+
+      <main className={styles.container}>
+        <div className={styles.posts}>
+          <a href="">
+            <time>12 de março de 2023</time>
+            <strong>Creating a new project in ReactJS</strong>
+            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Esse quae ipsum expedita dolores aut, libero a obcaecati voluptatum, id tempore ea eligendi?</p>
+          </a>
+        </div>
+      </main>
+    </>
+  );
+}
+```
+
+```scss
+// styles.module.scss
+.container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.posts {
+  max-width: 720px;
+  margin: 5rem auto 0;
+
+  a {
+    display: block;
+
+    & + a {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--grey-700);
+    }
+
+    time {
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      color: var(--gray-300);
+    }
+
+    strong {
+      display: block;
+      font-size: 1.5rem;
+      margin-top: 1rem;
+      line-height: 2rem;
+    }
+
+    p {
+      color: var(--gray-300);
+      margin-top: 0.5rem;
+      line-height: 1.625rem;
+    }
+
+    &:hover {
+      strong {
+        color: var(--yellow-500);
+      }
+    }
+
+  }
+}
+```
+
