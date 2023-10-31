@@ -552,3 +552,73 @@ export default function Posts(){
 }
 ```
 
+### Consumindo API do Prismic
+
+Para consumirmos a Api do Prismic e termos acesso aos nossos posts. Primeiro de tudo, como qualquer programador deve fazer, é ter acesso a documentação do serviço e entender como ele funciona.
+
+Para nós vamos para a documentação do Prismic em [prismic.io/docs/api](https://prismic.io/docs/api)
+
+Em seguida vamos criar um novo arquivo dentro da pasta __../services/__ com o nome de __*prismic.ts*__
+
+> Só para esclarecer um pouco as coisas, a pasta "./src/services/" possui diversos arquivos em que cada um é uma integração com algum serviço onde posso coletar ou contatar dados dos serviços
+
+Dentro do arquivo teremos o código para conseguirmos ter acesso a API do Prismic:
+
+```typescript
+import Prismic from '@prismicio/client'
+
+export function getPrismicClient(req?: unknown) {
+  const prismic = Prismic.client(
+    process.env.PRISMIC_END_POINT!,
+    {
+      req,
+      accessToken: process.env.PRISMIC_ACCESS_TOKEN,
+    }
+  )
+
+  return prismic;
+}
+```
+
+Talvez o código acima não funcione para algumas implementações por causa da versão do prismic utilizada nessa aplicação (v5.1.1)
+
+No código utilizamos a criação de uma função padrão por causa que o próprio Prismic recomenda instanciar o cliente sempre que for chamado em algum lugar da aplicação, ao invés de chamar o mesmo cliente sempre como seria utilizando a exportação de uma variável constante
+
+Em seguida, vamos para a página de Posts, criada anteriormente. Lá criamos uma já conhecida função do Next, a __getStaticProps__ para criar dados em uma página estática, porque a página de posts vai ser estática, ela não tem necessidade de buscar a informação lá no Prismic sempre que for chamada, ainda mais por termos limitação de dados utilizados.
+
+Dentro do __./pages/posts/index.tsx__ temos:
+```typescript
+// .
+// .
+// .
+// página de posts
+export const getStaticProps: GetStaticProps = async () => {
+  const prismic = getPrismicClient();
+
+  const response = await prismic.query(
+    [
+      Prismic.predicates.at('document.type', 'post')
+    ],
+    {
+      fetch: ['publication.title', 'publication.content'],
+      pageSize: 100,
+    }
+  )
+    // como debugar com console.log()
+    // Recomendado usar o response.stringfy
+  console.log(JSON.stringify(response, null, 2))
+  
+
+  return {
+    props: {}
+  }
+}
+```
+
+No código da função __getStaticProps()__, chamamos nossa função __getPrismicClient()__ para instanciar o cliente. A partir dele, criamos uma "query", fornecida nessa versão da api do Prismic, para buscar os posts ou publications, dependendo do nome dado na criação deles, e obter acesso as informações dos posts dentro da variável __response__.
+
+### Listando Posts em tela
+
+### Navegação no menu
+
+### Componente: ActiveLink
