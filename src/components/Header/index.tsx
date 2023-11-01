@@ -1,6 +1,6 @@
 import { SignInButton } from '../SignInButton';
 import styles from './styles.module.scss'
-// import Image from 'next/image';
+import Link from 'next/link';
 
 export function Header() {
   return (
@@ -9,8 +9,8 @@ export function Header() {
         {/* imagens ficam sempre na pasta public */}
         <img src="/images/logo.svg" alt="ig.news" />
         <nav>
-          <a className={styles.active}>Home</a>
-          <a>Posts</a>
+          <Link href={'/'} className={styles.active}>Home</Link>
+          <Link href={'/posts'}prefetch>Posts</Link>
         </nav>
 
         <SignInButton />

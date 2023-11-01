@@ -743,4 +743,28 @@ Por fim, a data é usado uma ferramenta já conhecida, a função Date().toLocal
 
 ### Navegação no menu
 
+Normalmente para navegar de uma página a outra em uma aplicação nós iríamos até o menu de navegação da nossa página que no caso é o nosso componente Header, e dentro das âncoras \<a>\</a> acrescentaríamos a propriedade __href=""__ com o endereço da outra página.
+
+O Next, por baixo dos panos, usa react e para carregar uma página a outra com as âncoras, toda a página é carregada e isso demora bastante.
+
+Uma forma de evitar isso é utilizando uma estrutura que o Next nos fornece, o _Link_ importado do 'next/link'.
+
+Ele nos fornece mais velocidade ao mudar de uma página para outra, além disso ele possui propriedades que possibilitam carregar uma página antes que o usuário navegue até ela. Isso se aplica caso seja uma página útil que entendemos como comumente visitada e que precisa ser pré-carregada.
+
+```typescript
+import Link from 'next/link';
+// .
+// .
+// .
+
+  <nav>
+    <Link href={'/'} className={styles.active}>Home</Link>
+    <Link href={'/posts'} prefetch >Posts</Link>
+  </nav>
+// .
+// .
+// .
+
+```
+
 ### Componente: ActiveLink

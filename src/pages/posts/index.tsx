@@ -56,7 +56,7 @@ export const getStaticProps: GetStaticProps = async () => {
   )
     // como debugar com console.log()
     // Recomendado usar o response.stringfy
-  console.log(JSON.stringify(response, null, 2))
+  // console.log(JSON.stringify(response, null, 2))
   const posts = response.results.map(post => {
     // pequena modificação por causa do typescript para não
     // ocasionar o erro de dados unknown por conta da tipagem
