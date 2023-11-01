@@ -619,6 +619,128 @@ No código da função __getStaticProps()__, chamamos nossa função __getPrismi
 
 ### Listando Posts em tela
 
+Uma coisa muito importante do fluxo do react como um todo, é a questão da formatação de dados.
+
+_**Quando recebemos dados de terceiros é muito comum o conteúdo vir em formatos diferentes do esperado, ou de que a gente não precise.**_
+
+Para isso, temos diversas formas de formatação dos dados. Dentro de uma função "getStaticProps()" ou "getServerSideProps()" ou na própria página logo antes de mostrarem os dados.
+
+O que é recomendado de ser feito __SEMPRE QUE POSSÍVEL__ é formatar os dados logo depois de consumir os dados do serviço externo. Isso permite menos utilização de recursos garantindo melhor processamento e só vai ser feito uma vez, quando se é utilizado dentro da página ele pode ocorrer diversas vezes.
+
+O código da nossa função "getStaticProps()" dentro da página de posts para listar os posts ficou dessa forma:
+
+```typescript
+export const getStaticProps: GetStaticProps = async () => {
+  const prismic = getPrismicClient();
+
+  const response = await prismic.query(
+    [
+      Prismic.predicates.at('document.type', 'post')
+    ],
+    {
+      fetch: ['publication.title', 'publication.content'],
+      pageSize: 100,
+    }
+  )
+    // como debugar com console.log()
+    // Recomendado usar o response.stringfy
+  console.log(JSON.stringify(response, null, 2))
+  const posts = response.results.map(post => {
+    // pequena modificação por causa do typescript para não
+    // ocasionar o erro de dados unknown por conta da tipagem
+    type Post = {
+      data: {
+        title: string;
+        content: {
+          type: string;
+          text: string;
+      }[];
+      };
+    }
+    const postData = post.data as Post['data'];
+    // a partir daqui sabemos o tipo dos dados do objeto post
+    // e podemos acessar as propriedades sem problemas
+
+    return {
+      slug: post.uid,
+      title: RichText.asText(postData.title),
+      excerpt: (postData.content.find((content) => content.type === 'paragraph')?.text ?? ''),
+      updatedAt: new Date(post.last_publication_date!).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      })
+    };
+  })
+
+  return {
+    props: {
+      posts
+    }
+  }
+}
+```
+
+O que há de novo nesse código? Apenas criamos uma variável que receberá os dados e os formatará da maneira que desejamos para a página.
+
+A variável ___posts___ recebe os resultados da variável ___response___ em uma função "map()" que retorna cada item da forma desejada. Nesse caso, retrnamos cada item como um objeto com 4 propriedades específicas, sendo elas o uid, o título, o conteúdo e a última data de publicação.
+
+```typescript
+const posts = response.results.map(post => {
+    return {
+      // Formatação aqui
+    }
+  }
+)
+```
+
+Por conta do Typescript, é necessário identificar os tipos das variáveis dentro do objeto **post**, por essa razão criamos a variável postData que recebe a tipicação de **Post** mostrada no código abaixo.
+
+```typescript
+type Post = {
+  data: {
+    title: string;
+    content: {
+      type: string;
+      text: string;
+  }[];
+  };
+}
+
+const postData = post.data as Post['data'];
+```
+
+Usamos RichText, uma ferramenta da biblioteca '@types/prismic-dom' que nos fornece os dados em forma de texto para não ocorrerem erros de inadequação.
+
+```typescript
+const posts = response.results.map(post => {
+  type Post = {
+    data: {
+      title: string;
+      content: {
+        type: string;
+        text: string;
+    }[];
+    };
+  }
+  const postData = post.data as Post['data'];
+
+  return {
+    slug: post.uid,
+    title: RichText.asText(postData.title),
+    excerpt: (postData.content.find((content) => content.type === 'paragraph')?.text ?? ''),
+    updatedAt: new Date(post.last_publication_date!).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    })
+  };
+})
+```
+Usamos também a função find, para encontrarmos dentro da lista de postData.content o conteúdo em texto da página de acordo com o tipo do conteúdo, se ele for parágrafo, imagem, título, entre outros. 
+
+Por fim, a data é usado uma ferramenta já conhecida, a função Date().toLocaleDateString() para formatação de datas. E para chegarmos a uma desejada, especificamos na segunda posição o formato do objeto Date.
+
 ### Navegação no menu
 
 ### Componente: ActiveLink

@@ -3,8 +3,20 @@ import styles from './styles.module.scss';
 import Head from 'next/head';
 import { getPrismicClient } from '@/src/services/prismic';
 import Prismic from '@prismicio/client';
+import { RichText } from 'prismic-dom';
 
-export default function Posts(){
+type Post = {
+  slug: string;
+  title: string;
+  excerpt: string;
+  updatedAt: string;
+
+}
+interface PostsProps {
+  posts: Post[],
+}
+
+export default function Posts({ posts }: PostsProps){
   return (
     <>
       <Head>
@@ -13,21 +25,17 @@ export default function Posts(){
 
       <main className={styles.container}>
         <div className={styles.posts}>
-          <a href="">
-            <time>12 de março de 2023</time>
-            <strong>Creating a new project in ReactJS</strong>
-            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Esse quae ipsum expedita dolores aut, libero a obcaecati voluptatum, id tempore ea eligendi?</p>
-          </a>
-          <a href="">
-            <time>12 de março de 2023</time>
-            <strong>Creating a new project in ReactJS</strong>
-            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Esse quae ipsum expedita dolores aut, libero a obcaecati voluptatum, id tempore ea eligendi?</p>
-          </a>
-          <a href="">
-            <time>12 de março de 2023</time>
-            <strong>Creating a new project in ReactJS</strong>
-            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Esse quae ipsum expedita dolores aut, libero a obcaecati voluptatum, id tempore ea eligendi?</p>
-          </a>
+
+          {
+            posts.map(post => (
+              <a key={post.slug} href="">
+                <time>{post.updatedAt}</time>
+                <strong>{post.title}</strong>
+                <p>{post.excerpt}</p>
+              </a>
+            ))
+          }
+          
         </div>
       </main>
     </>
@@ -49,11 +57,37 @@ export const getStaticProps: GetStaticProps = async () => {
     // como debugar com console.log()
     // Recomendado usar o response.stringfy
   console.log(JSON.stringify(response, null, 2))
-  
+  const posts = response.results.map(post => {
+    // pequena modificação por causa do typescript para não
+    // ocasionar o erro de dados unknown por conta da tipagem
+    type Post = {
+      data: {
+        title: string;
+        content: {
+          type: string;
+          text: string;
+      }[];
+      };
+    }
+    const postData = post.data as Post['data'];
+    // a partir daqui sabemos o tipo dos dados do objeto post
+    // e podemos acessar as propriedades sem problemas
+
+    return {
+      slug: post.uid,
+      title: RichText.asText(postData.title),
+      excerpt: (postData.content.find((content) => content.type === 'paragraph')?.text ?? ''),
+      updatedAt: new Date(post.last_publication_date!).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      })
+    };
+  })
 
   return {
     props: {
-      response
+      posts
     }
   }
 }
