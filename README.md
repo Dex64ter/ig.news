@@ -768,3 +768,102 @@ import Link from 'next/link';
 ```
 
 ### Componente: ActiveLink
+
+Vamos concertar o link ativo da nossa página:
+
+![Foto da página posts com incoerência do css do menu, que foca a página home ao invés da posts como deveria ser](/imgs/pagina-posts.png)
+
+Como vemos na imagem, o endereço da nossa aplicação indica que estamos na página posts, mas a barra de navegação destaca a página home como se ela estivesse sendo mostrada atualmente
+
+Para corrigir isso temos diferentes formas. Uma delas seria utilizar o condicional na parte de navegação de acordo com a classe scss que usamos para estilizar o nome da página sendo mostrada:
+
+```typescript
+// .
+// .
+// .
+import { useRouter } from 'next/router'; 
+
+export function Header() {
+  const { asPath } = useRouter();
+
+  return (
+    <header className={styles.headerContainer}>
+      <div className={styles.headerContent}>
+        {/* imagens ficam sempre na pasta public */}
+        <img src="/images/logo.svg" alt="ig.news" />
+        <nav>
+          <Link href={'/'} className={asPath === '/' ? styles.active : ''}>Home</Link>
+          <Link href={'/posts'} className={asPath === '/posts' ? styles.active : ''} prefetch >Posts</Link>
+        </nav>
+
+        <SignInButton />
+      </div>
+    </header>
+  );
+}
+```
+O react hook "useRouter" nos possibilita verificar o endereço da página em que o usuário se encontra na aplicação, desestruturando ele para _{ asPath }_ ele nos fornece o caminho da aplicação. No nosso caso, ele pode representar tanto o caminho da Home ('/') como dos Posts ('/posts'), com isso conseguimos fazer o condicional desejado.
+
+Mas utilizar essa implementação para aplicações maiores daria muito trabalho e gastaria tempo de processamento.
+
+Sendo assim, optamos por criar um componente para exercer essa função. O componente "ActiveLink" é criado no caminho __../src/components/ActiveLink/__ e adicionado a pasta um arquivo __index.tsx__ com o seguinte código:
+
+```typescript
+import { useRouter } from 'next/router';
+import Link, { LinkProps } from 'next/link';
+import { ReactElement, cloneElement } from 'react';
+
+interface ActiveLinkProps extends LinkProps {
+  children: ReactElement,
+  activeClassName: string;
+}
+
+export default function ActiveLink({ children, activeClassName, ...rest }: ActiveLinkProps){
+  const { asPath } = useRouter();
+  
+  const className = asPath === rest.href
+  ? activeClassName
+  : '';
+
+  return (
+    <Link {...rest} className={className}>
+      {children}
+    </Link>
+  );
+}
+```
+
+No código do componente utilizamos a biblioteca 'react' para utilizarmos as ferramentas **ReactElement**, que nos permite reconhecer elementos do React como um tipo possibilitando que propriedades recebam o tipo ReactElement representando tags de uma página react entre outros elementos, e cloneElement, que nos permite criar outro elemento react através de um elemento react pré criado podendo adicionar novas propriedades a ele.
+
+O Componente recebe todas as propriedades de um elemento Link do next e somente é adicionado duas novas propriedades dentro do ___interface ActiveLinkProps extends LinkProps___:
+
+- **children**: Que recebe como valor um elemento react.
+- **activeClassName**: Que recebe como valor do tipo string, que será o nome da classe de estilização.
+
+Fazemos a mesma lógica de antes só que dessa vez verificamos o caminho da aplicação antes e passamos o valor da classe de estilização para uma variável 'className' que é usada no elemento Link do componente.
+
+A navegação do nosso Header ficará da seguinte forma:
+```typescript
+return (
+  // .
+  // .
+  // .
+  <nav>
+    <ActiveLink activeClassName={styles.active} href={'/'}>
+      <>
+        Home
+      </>
+    </ActiveLink>
+    <ActiveLink activeClassName={styles.active} href={'/posts'}  prefetch >
+      <>
+        Posts
+      </>
+    </ActiveLink>
+  </nav>
+  // .
+  // .
+  // .
+
+)
+```
+Foi importado o componente e utilizado no lugar do elemento 'Link' as mesmas propriedade são usadas tanto para o elemento Link como para o nosso componente __ActiveLink__. Com adição da propriedade __activeClassName__ que será usada para receber o valor da classe de estilo que pode ser usada nos elementos desejados.
