@@ -741,6 +741,62 @@ Usamos também a função find, para encontrarmos dentro da lista de postData.co
 
 Por fim, a data é usado uma ferramenta já conhecida, a função Date().toLocaleDateString() para formatação de datas. E para chegarmos a uma desejada, especificamos na segunda posição o formato do objeto Date.
 
+Após a nossa formatação, retornamos a variável __posts__ contendo a listagem dos objetos __post__ formatados.
+
+```typescript
+// getStaticProps()
+return {
+  props: {
+    posts
+  }
+}
+```
+
+Em seguida, vamos utilizar dentro da página, tipificando com a função type um objeto _Post_ e utilizando uma interface para descrever as propriedades de PostProps como um array de _Post_.
+
+```typescript
+// getStaticProps()
+type Post = {
+  slug: string;
+  title: string;
+  excerpt: string;
+  updatedAt: string;
+
+}
+interface PostsProps {
+  posts: Post[],
+}
+```
+
+E finalmente dentro da função principal da página teremos a utilização adequada da variável post e todas suas propriedades:
+
+```typescript
+export default function Posts({ posts }: PostsProps){
+  return (
+    <>
+      <Head>
+        <title>Posts | Ignews</title>
+      </Head>
+
+      <main className={styles.container}>
+        <div className={styles.posts}>
+          {
+            posts.map(post => (
+              <Link key={post.slug} href={`/posts/${post.slug}`}>
+                <time>{post.updatedAt}</time>
+                <strong>{post.title}</strong>
+                <p>{post.excerpt}</p>
+              </Link>
+            ))
+          }
+          
+        </div>
+      </main>
+    </>
+  );
+}
+```
+
 ### Navegação no menu
 
 Normalmente para navegar de uma página a outra em uma aplicação nós iríamos até o menu de navegação da nossa página que no caso é o nosso componente Header, e dentro das âncoras \<a>\</a> acrescentaríamos a propriedade __href=""__ com o endereço da outra página.
@@ -867,3 +923,137 @@ return (
 )
 ```
 Foi importado o componente e utilizado no lugar do elemento 'Link' as mesmas propriedade são usadas tanto para o elemento Link como para o nosso componente __ActiveLink__. Com adição da propriedade __activeClassName__ que será usada para receber o valor da classe de estilo que pode ser usada nos elementos desejados.
+
+### Página: Post
+
+Vamos fazer a página para os Posts serem mostrados por completos.
+
+Como já sabemos, as página que serão mostradas na aplicação estarão dentro da pasta _pages_ ou de _pages/api/_ ou _pages/posts_, e como queremos uma página dinâmica, já que a página de posts não mostrará somente um post mas sim vários dependendo do id do post que queremos mostrar.
+
+Nesse sentido, podemos colocar o nome do arquivo da página de __post__ como: '__[slug].tsx__'. Dentro dos colchetes '[ ]' ficará nosso identificador com o nome desejado, podendo ser de acordo com uma característica específica do elemento que será mostrado. No caso dos posts, cada um deles terá um slug como UID dele.
+
+![Organizacao de pastas de posts](./imgs/pastas-posts.png)
+
+Fazendo um pequeno teste com a organização de pastas dessa forma, agora podemos chegar a esta página acessando _localhost:3000/posts/**[qualquer coisa]**_. Dentro dos colchetes do endereço deve ficar o identificador do post que será mostrado.
+
+Para nossa página de Post, será retornado o seguinte código com a seguinte estrutura:
+
+```typescript
+export default function Post({ post }: PostProps) {
+  return (
+    <>
+      <Head>
+        <title>{post.title} | Ignews</title>
+      </Head>
+
+      <main className={styles.container}>
+        <article className={styles.post}>
+          <h1>{post.title}</h1>
+          <time>{post.updatedAt}</time>
+          <div
+            className={styles.postContent}
+            dangerouslySetInnerHTML={{ __html: post.content }}
+          />
+        </article>
+      </main>
+    </>
+  );
+}
+```
+Em relação ao objeto desestruturado _post_ utilizaremos uma das nossas funções para que executam no lado do servidor Next, poderíamos utilizar a **getStaticProps()** já que a página estaria por padrão não dinâmica e não seria modificada.
+
+Como na nossa aplicação só quem tem acesso aos posts será quem possui uma assinatura, utilizaremos a função **getServerSideProps()** que garante maior validação e segurança dos dados.
+
+> Vale lembrar que, toda página que é feita de forma estática "getStaticProps()" vai ser uma página não protegida, qualquer um pode ter acesso a ela
+
+```typescript
+// [slug].tsx
+export const getServerSideProps: GetServerSideProps = async ({ req, params }) => {
+  const session = await getSession({ req });
+  const { slug } = params as { slug: string };
+  const prismic = getPrismicClient(req);
+  const response = await prismic.getByUID('post', String(slug), {});
+
+  type Response = {
+    data: {
+      title: string;
+      content: {
+        type: string;
+        text: string;
+      }[];
+    };
+  }
+
+  const res = response as Response;
+
+  const post = {
+    slug,
+    title: RichText.asText(res.data.title),
+    content: RichText.asHtml(res.data.content),
+    updatedAt: new Date(response.last_publication_date!).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+  return {
+    props: {
+      post
+    }
+  }
+}
+```
+
+Explicando o código, primeiro recebemos o parâmetro _'req'_ que através do nextAuth nos ajudará a verificar se o usuário está logado pela nossa variável _session_ com a função _getSession()_.
+
+Em seguida, temos o parâmetro _params_ que reconhece o arquivo e nos devolve o nome do identificador que ficará no local de _[slug]_ no caminho do nosso arquivo.
+
+Logo temos a variável prismic que recebe o cliente através da nossa função _getPrismicClient(req)_ que nos retorna um client do prismic para acesso ao conteúdo lá postado.
+
+Com ele podemos receber os dados de um post específico na nossa variável ___response___ com a função `prismic.getByUID('post', String(slug), {})` que procura um post específico que criamos anteriormente na configuração do prismic e nos retorna todos os seus dados para uso.
+
+Antes de retornarmos os dados, vamos formatá-los como desejarmos, assim como foi anteriomente na página padrão 
+de listagem de ___Posts___. Por fim retornando __post__.
+
+Ao usar o elemento Post é sempre bom tipificá-lo, dessa forma antes da função principal da página criamos uma `interface PostsProps`
+```typescript
+interface PostProps {
+  post: {
+    slug: string,
+    title: string,
+    content: string,
+    updatedAt: string,
+  }
+}
+```
+
+> Já utilizamos essa mesma tipificação na listagem de Posts, por que não exporta-la para utilizar aqui também? Isso é possível de se fazer mas não é uma boa prática. geralmente a interface criada no TypeScript cria os tipos dos dados que serão usados exclusivamente naquela página isso melhora a organização dos dados e exemplifica o contexto.
+
+Uma peculiaridade que deve ser citada, é que o conteúdo de um post do prismic é enviado na forma de HTML dentro daquela nossa formatação acima, `content: RichText.asHtml(res.data.content)` por conta disso não podemos simplesmente colocar dentro do nosso retorno:
+```typescript
+// exemplo
+<div>
+  {post.content}
+</div>
+```
+Pois isso mostraria o texto em formato HTML sem formatação adqueada das estruturas.
+
+Entratanto, temos uma propriedade que existe nos elementos do react chamada **_dangerouslySetInnerHTML_**
+
+```typescript
+// [slug].tsx
+// export function Post({ post }: PostProps){
+<div
+  className={styles.postContent}
+  dangerouslySetInnerHTML={{ __html: post.content }}
+/>
+// }
+```
+Essa propriedade, como o próprio nome indica, é uma forma de aplicar HTML no nosso código perigosamente, porque esse tipo de prática, se o back-end da aplicação não tiver a devida segurança e permite injeção de scripts na página, é capaz de sripts maliciosos terem acesso a esse html inserido e acabar tendo acesso ao cookies de usuário entre outras coisas.
+
+Sabendo que o prismic tem uma tratativa html para não permitir tais práticas, é seguro utilizar essa propriedade.
+
+Por fim desta página, temos a estilização dela descrita logo abaixo no arquivo **'./post.module.scss'**:
+
+
+### Validando assinatura ativa
