@@ -23,7 +23,7 @@ export default async function subscribe(req: NextApiRequest, res: NextApiRespons
       q.Get(
         q.Match(
           q.Index('user_by_email'),
-          q.Casefold(session.user.email)
+          q.Casefold(session.user?.email)
         )
       )
     )
@@ -34,7 +34,7 @@ export default async function subscribe(req: NextApiRequest, res: NextApiRespons
     // Se não possuir, criar um customer no stripe
     if (!customerId) {
       const stripeCustomer = await stripe.customers.create({
-        email: session.user.email,
+        email: session?.user?.email,
         // metadata
       })
       

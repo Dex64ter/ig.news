@@ -1057,3 +1057,166 @@ Por fim desta página, temos a estilização dela descrita logo abaixo no arquiv
 
 
 ### Validando assinatura ativa
+
+Resumindo esse tópico, devemos agora verificar se a assinatura do usuário logado na aplicação do ignews está ativa, caso não ele é redirecionado para a página inicial da aplicação ao clicar em um dos posts. Caso contrário ele é direcionado para a página contendo o Post clicado.
+
+Na função **getServerSideProps()** eu tenho acesso a sessão do usuário com o **getSession()** mas não temos acesso diretamente a assinatura dele. Para isso, poderíamos utilizar o faunaDB dentro do **getServersideProps** sem problema, pois dentro dele podemos ter acesso a Banco de Dados, email coisas que necessitam de segurança.
+
+Entretano pensando na possibilidade de eu precisar ter acesso a assinatura do usuário em outros lugares da aplicação, por exemplo, no componente **SubscribeButton** onde permitimos que o usuário logado se inscreva na plataforma nós não implementamos para o caso do usuário já estar incrito na plataforma.
+
+> o usuário já cadastrado consegue se increver várias vezes mesmo já tendo feito uma vez e estar com a assinatura ativa
+
+Nesse contexto, já temos dois lugares que necessitam de acesso a assinatura do usuário.
+
+Como queremos uma informação compartilhada com vários componentes, geralmente pensamos em _context Api_, mas não dessa vez, como ambas as estruturas utilizam o session, nossa solução será <span style="color: #40f134; font-weight: 600">Adicionar mais informações ao session</span>. E faremos isso no nosso arquivo _[...nextauth].ts_
+
+```typescript
+// callbacks: {}
+async session({ session }) {
+  
+  return session;
+},
+```
+
+Dentro do nosso **[...nextauth].ts** teremos um novo callback chamado session, ele também se encontra na documentaação do [nextAuth](https://next-auth.js.org/configuration/callbacks#session-callback), dentro deste callback utilizaremos uma _query_ do faunaDB para a procura do status da assinatura do usuário em questão.
+
+```typescript
+// async session({ session }) {}
+try {
+  const userActiveSubscription = await fauna.query(
+    q.Get(
+      q.Intersection([
+        q.Match(
+          q.Index("subscription_by_user_ref"), // acessando o index subscription_by_user_ref
+          q.Select(
+            "ref",
+            q.Get(
+              q.Match(
+                q.Index("user_by_email"),
+                q.Casefold(session.user?.email ?? "") // providing a default value for email
+              )
+            )
+          )
+        ),
+        q.Match(
+          q.Index("subscription_by_status"), // acessando o index subscription_by_status
+          q.Casefold("active")
+        )
+      ])
+    )
+  )
+
+  return {
+    ...session,
+    activeSubscription: userActiveSubscription
+  };
+  // ...
+} catch {   
+  return {
+    ...session,
+    activeSubscription: null
+  };
+}
+```
+
+Em primeiro caso, utilizaremos a função _Get()_ para pegar os dados do fauna, usando _Intersection()_ para os dados serem filtrados somente entre os comuns a dois elementos, mas entre quais elementos?
+
+O primeiro elemento dessa função _Intersection()_ será o elemento buscado pelo índice "subscription_by_user_ref" selecionado pela propriedade "ref" dentro de um outro _Get()_ que procura o usuário no fauna pelo índice "user_by_email" de acordo com o email logado na aplicação.
+
+O índice "subscription_by_user_ref" não existe no nosso FaunaDB então devemos criá-lo.
+
+![índice criado "subscription_by_user_ref"](./imgs/ind_sub_by_user_ref.png)
+
+O segundo elemento dessa função _Intersection()_ será uma subscription que está ativa. Pegaremos ela utilizando a função _Match()_ a procura do índice "subscription_by_status" que possui "active".
+Caso esse índice não esteja criado vamos até o fauna e criamos ele:
+
+![Configs do índice subscription_by_status](./imgs/sub_by_status.png)
+
+Verificando se a subscription do usuário em questão está com o status "active", caso não esteja "active", ou seja, se caso estiver "canceled" então ele disparará um erro, por essa razão temos o uso do ___try catch___.
+
+Por fim, retornamos um objeto com todos os dados da session com um dado a mais, o "activeSubscription" que nos retorna o resultado da query do fauna, ou seja, obtemos a confirmação de que a assinatura do usuário está ativa ou nos retorna __null__ por não encontrar nenhuma ativação na assinatura do usuário.
+
+Com toda essa função pronta teremos:
+```typescript
+// callbacks: {}
+async session({ session }) {
+  try {
+    const userActiveSubscription = await fauna.query(
+      q.Get(
+        q.Intersection([
+          q.Match(
+            q.Index("subscription_by_user_ref"), // acessando o index subscription_by_user_ref
+            q.Select(
+              "ref",
+              q.Get(
+                q.Match(
+                  q.Index("user_by_email"),
+                  q.Casefold(session.user?.email ?? "") // providing a default value for email
+                )
+              )
+            )
+          ),
+          q.Match(
+            q.Index("subscription_by_status"), // acessando o index subscription_by_status
+            q.Casefold("active")
+          )
+        ])
+      )
+    )
+
+    return {
+      ...session,
+      activeSubscription: userActiveSubscription
+    };
+  } catch {
+    
+    return {
+      ...session,
+      activeSubscription: null
+    };
+  }
+},
+// ...
+```
+
+Em seguida é hora de utilizarmos o novo dado de session nas outras estruturas.
+
+```typescript
+// [slug].tsx
+// export const getServerSideProps: GetServerSideProps = async ({ req, params }) => {
+  const session = await getSession({ req });
+  const { slug } = params as { slug: string };
+
+  if (!session?.activeSubscription) {
+    return {
+      redirect: {
+        destination: '/',
+        permanent: false
+      }
+    }
+  }
+```
+
+No arquivo [slug].tsx teremos uma estrutura condicional verificando o statu da assinatura do usuário logado. Caso o dado da session seja nulo, a página é redirecionada para a página home da aplicação.
+
+Caso o usuário esteja com sua assinatura ativa, o dado da session existirá e não passará pelo condicional, mostrando o post em tela.
+
+No nosso componente SubscribeButton adicionamos um condicional que verifica se o usuário já possui assinatura ativa:
+
+```typescript
+// async function handleSubscribe(){
+  // ...
+  if (session.activeSubscription) {
+    router.push('/posts')
+    return;
+  }
+  // ...
+```
+
+Caso já possua, ele é imediatamente redirecionado para página de posts, sem poder se inscrever diversas vezes como era antes.
+
+### Página: Preview do post
+
+### Gerando previews estáticos
+
+### Finalização do módulo
