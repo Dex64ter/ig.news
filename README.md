@@ -1217,6 +1217,124 @@ Caso já possua, ele é imediatamente redirecionado para página de posts, sem p
 
 ### Página: Preview do post
 
+Criando nossa página de preview iremos criar mais uma rota na nossa pasta pages. Dentro da pasta __./pages/posts__ iremos adicionar mais uma pasta com o nome de "../preview" e dentro dela copiaremos o arquivo [slug].tsx de Posts para dentro dela, entretanto nesse novo arquivo [slug].tsx dentro de preview nós faremos algumas modificações.
+
+> Para que vai servir a página de preview do Post? Ela geralmente vai mostrar uma pequena parte do Post escolhido por um usuário que não está logado ou que não possui assinatura ativa, esse tipo de página ajuda ao leitor saber sobre o que ele irá pagar e se o resto do conteúdo em questão é realmente de seu interesse.
+
+Para nossa nova página, algumas modificações que faremos será na parte do servidor, trocando o ___getServerSideProps()___ por ___getStaticProps()___ pois entendemos que por ser uma página de preview, não nos requer validação de usuário nem algo do tipo, sendo assim modificamos a nossa função para uma estática que ficará sem algumas estruturas, dessa forma:
+```typescript
+// ../preview/[slug].tsx
+// ...
+export const getStaticProps: GetStaticProps = async ({ params }) => {
+  const { slug } = params as { slug: string };
+
+  const prismic = getPrismicClient();
+
+  const response = await prismic.getByUID('post', String(slug), {});
+
+  type Response = {
+    data: {
+      title: string;
+      content: {
+        type: string;
+        text: string;
+      }[];
+    };
+  }
+
+  const res = response as Response;
+
+  const post = {
+    slug,
+    title: RichText.asText(res.data.title),
+    content: RichText.asHtml(res.data.content.splice(0, 3)),
+    updatedAt: new Date(response.last_publication_date!).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+  return {
+    props: {
+      post
+    },
+    revalidate: 60 * 30 // 30 minutes
+  }
+}
+```
+
+Não é mais utilizado o parâmetro "req" como era antes, por não precisar mais da validação do usuário que antes precisava dele. Sendo assim, todas as outras estruturas que o utilizavam não aparecem mais nessa função estática.
+
+Desejamos mostrar apenas os 3 primeiros elementos de um post, sendo assim, na parte de formatação dos dados dentro da nossa nova função temos:
+```typescript
+// ...
+content: RichText.asHtml(res.data.content.splice(0, 3)),
+// ...
+```
+Pelo conteúdo entregue ser uma lista de elementos, o splice funciona recebendo apenas os itens de index 1 até o index 3.
+
+Em seguida vamos melhorar a estilização dessa página de preview dos posts. Dentro do html da página, na div que nos mostra o conteúdo, já temos o nome da classe scss como "styles.postContent", mas temos a possibilidade de adicionar mais uma classe scss utilizando as crases:
+
+```typescript
+// ./preview/[slug].tsx
+export function PostPreview({ post }: PostPreviewProps) {
+// ...
+      <div
+        className={`${styles.postContent} ${styles.previewContent}`}
+        dangerouslySetInnerHTML={{ __html: post.content }}
+      />
+// ...
+}
+```
+
+Essa nova classe de estilização é adicionada no arquivo ___../post.module.scss___ para mostrar o gradiente de cor do texto da página transparente.
+
+![Imagem de como deve ficar o texto após a adição da estilização, com o gradiente tornando o texto transparente](./imgs/post_transparent.png)
+
+Por fim temos o botão para se caso o usuário deseje continuar lendo o texto, se increver na aplicação.
+
+Para isso temos a seguinte estruturação e classe scss:
+
+```javascript
+// ./preview/[slug].tsx
+export function PostPreview({ post }: PostPreviewProps) {
+// ...
+  <div className={styles.continueReading}>
+    Wanna continue reading?
+    <Link href="">
+      Subscribe now! 🤗
+    </Link>
+  </div>
+// ...
+}
+```
+
+A classe scss também está presente dentro do arquivo __../post.module.scss__
+
+Agora temos uma novo desafio, precisaríamos verificar se o usuário está tanto logado na página como se ele possui assinatura ativa. Para isso, não poderemos usar a função que criamos para gerar o conteúdo do post, pois como já afirmamos antes, uma função __getStaticProps()__ é executada em um contexto onde não há informações de validação como usuário logado, sessão entre outras informações.
+
+Sabendo disso, para sabermos das informações do usuário, podemos verificar dentro do próprio componente __PostPreview__
+
+```typescript
+// ./preview/[slug].tsx
+// ...
+export default function PostPreview({ post }: PostPreviewProps) {
+  const {data: session} = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (session?.activeSubscription) {
+      router.push(`/posts/${post.slug}`);
+    }
+  }, [session]);
+  // ...
+}
+```
+
+Utilizando o __useEffect()__ um hook react para verificarmos as dependências dentro do seu array e reiniciar a página fazendo a verificação necessária do usuário em questão sobre o status da sua assinatura.
+
+Fazendo isso, sempre que o usuário logar ou mudar sua sessão na página de preview do post, a página por sua vez irá atualizar e fazer a validação necessária. Caso o usuário esteja adequado com a verificação, ele é redirecionado para a página do post completo com o "router" do hook __useRouter()__ utilizando a função _push_ para o endereço `/posts/${post.slug}`
+
 ### Gerando previews estáticos
 
 ### Finalização do módulo
